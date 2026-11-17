@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unit 2 Showdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1640; --board:#0f2a8a; --tile:#1638b8; --tile-hi:#2148d6; --tile-used:#0c1d5c;
+  --gold:#ffcc33; --ink:#fff; --muted:#b9c4f0; --line:#06103a;
+  --good:#22c55e; --bad:#ef4444; --panel:#122364;
+  --t0:#ef4444; --t1:#3b82f6; --t2:#22c55e; --t3:#f59e0b; --t4:#a855f7; --t5:#ec4899;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(ellipse at top,#16257a,var(--bg) 70%);color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px}
+.hidden{display:none!important}
+h1,h2,.display{font-family:Oswald,Impact,sans-serif;letter-spacing:.02em}
+
+/* ---------- math ---------- */
+.m{font-family:"Cambria Math","Times New Roman",serif;white-space:nowrap}
+.m sup{font-size:.62em}
+.rad{display:inline-flex;align-items:flex-start}
+.rs{padding-right:.04em}
+.rc{border-top:.07em solid currentColor;padding:0 .08em;margin-top:.12em;line-height:1.05}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.9em;margin:0 .12em}
+.fn{border-bottom:.07em solid currentColor;padding:0 .2em}
+.fd{padding:0 .2em}
+.work{display:block;width:fit-content;margin:.4em auto!important;text-align:left;background:rgba(255,255,255,.08);border-left:5px solid var(--bad);padding:.4em .9em;margin:.4em 0;border-radius:8px;font-size:.9em}
+.choices{display:inline-block;margin-top:.5em}
+
+/* ---------- setup ---------- */
+#setup{height:100%;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px}
+.card{background:var(--panel);border:2px solid #2b45b8;border-radius:20px;padding:28px;width:min(760px,100%);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.card h1{margin:0;font-size:clamp(34px,6vw,56px);color:var(--gold);text-transform:uppercase;text-shadow:3px 3px 0 #000}
+.card .sub{color:var(--muted);margin:4px 0 22px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:14px 0}
+.row label{font-weight:600}
+select,input[type=text],input[type=number]{font:inherit;padding:8px 10px;border-radius:10px;border:2px solid #2b45b8;background:#0b1a55;color:#fff}
+.teams-setup{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:10px 0 6px}
+.team-in{display:flex;align-items:center;gap:8px;background:#0b1a55;border-radius:12px;padding:8px;border-left:8px solid var(--c)}
+.team-in input{flex:1;min-width:0;border:0;background:transparent;padding:4px}
+.keycap{display:inline-block;min-width:1.9em;text-align:center;padding:2px 6px;border-radius:6px;background:#fff;color:#111;font-weight:800;box-shadow:0 3px 0 #999;font-family:Inter,sans-serif}
+.btn{padding:12px 20px;font-weight:800;background:var(--gold);color:#111}
+.btn.secondary{background:#2b45b8;color:#fff}
+.btn.good{background:var(--good);color:#04210f}
+.btn.bad{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.how{color:var(--muted);font-size:14px;line-height:1.5;margin-top:18px;border-top:1px solid #2b45b8;padding-top:14px}
+.how b{color:#fff}
+a{color:var(--gold)}
+
+/* ---------- board ---------- */
+#game{height:100%;display:flex;flex-direction:column;padding:10px;gap:10px}
+.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar h2{margin:0;color:var(--gold);font-size:clamp(20px,2.6vw,32px);text-transform:uppercase;text-shadow:2px 2px 0 #000}
+.topbar .ctl{color:var(--muted);font-weight:600}
+.topbar .sp{flex:1}
+.topbar .btn{padding:8px 14px;font-size:14px}
+#board{flex:1;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:auto repeat(5,1fr);gap:6px;background:var(--line);padding:6px;border-radius:12px;min-height:0}
+.cat{background:var(--board);display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-family:Oswald,sans-serif;text-transform:uppercase;font-size:clamp(13px,1.7vw,24px);border-radius:6px;min-height:8vh;text-shadow:2px 2px 0 #000}
+.tile{background:var(--tile);color:var(--gold);font-family:Oswald,sans-serif;font-size:clamp(22px,4.2vw,58px);font-weight:700;border-radius:6px;text-shadow:3px 3px 0 #000;transition:transform .1s,background .1s}
+.tile:hover:not(:disabled){background:var(--tile-hi);transform:scale(1.03)}
+.tile:disabled{background:var(--tile-used);color:transparent;text-shadow:none;cursor:default}
+#scores{display:flex;gap:8px;flex-wrap:wrap}
+.score{flex:1 1 140px;background:var(--panel);border-radius:12px;padding:8px 12px;border-top:6px solid var(--c);display:flex;align-items:center;gap:10px;position:relative}
+.score.control{box-shadow:0 0 0 3px var(--gold)}
+.score .nm{font-weight:800;font-size:clamp(14px,1.5vw,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score .pts{font-family:Oswald,sans-serif;font-size:clamp(22px,2.6vw,36px);margin-left:auto}
+.score .pts.neg{color:#ff8a8a}
+.score .adj{display:flex;flex-direction:column;gap:2px}
+.score .adj button{background:#2b45b8;color:#fff;font-size:11px;padding:1px 6px;border-radius:5px;opacity:.55}
+.score .adj button:hover{opacity:1}
+
+/* ---------- question overlay ---------- */
+.overlay{position:fixed;inset:0;background:var(--board);display:flex;flex-direction:column;padding:16px clamp(16px,3vw,40px);gap:12px;z-index:10}
+.qhead{display:flex;justify-content:space-between;align-items:center;gap:12px;font-family:Oswald,sans-serif;text-transform:uppercase;font-size:clamp(18px,2.4vw,30px);color:var(--muted)}
+.qhead .val{color:var(--gold)}
+.qtext{flex:1;display:flex;text-align:center;font-size:clamp(24px,3.8vw,54px);line-height:1.35;font-weight:600;text-shadow:2px 2px 0 rgba(0,0,0,.5);overflow:auto;min-height:0;padding:0 2vw}
+.qtext>div{max-width:1300px;margin:auto}
+.revealed .qtext{font-size:clamp(18px,2.4vw,34px)}
+.answer{background:#fff;color:#0b1640;border-radius:14px;padding:12px 20px;text-align:center;font-size:clamp(20px,2.8vw,38px);font-weight:600;line-height:1.4}
+.answer .lbl{display:block;font-size:.5em;letter-spacing:.15em;color:#4b5a9a;font-weight:800}
+.answer small{font-size:.6em;color:#4b5a9a}
+.status{text-align:center;font-family:Oswald,sans-serif;font-size:clamp(22px,3vw,40px);text-transform:uppercase;min-height:1.3em}
+.status.open{color:var(--good);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.55}}
+.timer{height:24px;background:rgba(0,0,0,.35);border-radius:8px;overflow:hidden;position:relative}
+.timer i{position:absolute;inset:0;width:100%;background:var(--gold);transform-origin:left;transition:background .3s}
+.timer i.low{background:var(--bad)}
+.timer b{position:absolute;left:0;right:0;top:0;text-align:center;line-height:24px;font-family:Oswald,sans-serif;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000}
+.controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.controls .btn{font-size:clamp(15px,1.6vw,22px)}
+.pads{display:flex;gap:8px}
+.pad{flex:1;background:var(--c);color:#fff;font-weight:800;padding:12px 6px;font-size:clamp(14px,1.6vw,22px);border-radius:12px;box-shadow:0 5px 0 rgba(0,0,0,.35);position:relative;transition:transform .08s,opacity .2s}
+.pad:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.pad .keycap{margin-left:6px;font-size:.8em}
+.pad.out{opacity:.22;text-decoration:line-through}
+.pad.early{animation:shake .3s}
+.pad.lit{outline:6px solid var(--gold);transform:scale(1.04)}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.buzzed{position:fixed;inset:auto 0 0 0;display:none}
+.banner{align-self:center;background:var(--c);padding:10px 34px;border-radius:999px;font-family:Oswald,sans-serif;font-size:clamp(26px,4vw,52px);text-transform:uppercase;box-shadow:0 0 0 5px var(--gold),0 0 50px var(--c);animation:pop .25s}
+@keyframes pop{from{transform:scale(.4)}}
+.dd{font-family:Oswald,sans-serif;font-size:clamp(50px,10vw,140px);color:var(--gold);text-transform:uppercase;text-shadow:5px 5px 0 #000;animation:spin .9s}
+@keyframes spin{from{transform:scale(.1) rotate(-200deg)}}
+.wager{display:flex;flex-direction:column;align-items:center;gap:14px;font-size:clamp(18px,2vw,26px)}
+.wager .pick{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.wager .pick button{background:var(--c);color:#fff;font-weight:800;padding:10px 16px;opacity:.45}
+.wager .pick button.sel{opacity:1;outline:4px solid var(--gold)}
+.wager input{width:200px;font-size:1.3em;text-align:center}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;width:min(1100px,100%)}
+.fteam{background:#0b1a55;border-radius:14px;padding:12px;border-top:8px solid var(--c);display:flex;flex-direction:column;gap:8px;align-items:center;font-size:clamp(16px,1.6vw,22px)}
+.fteam .nm{font-weight:800}
+.fteam input{width:100%;text-align:center;font-size:1.1em}
+.fteam .judge{display:flex;gap:6px}
+.fteam .judge button{padding:8px 14px;font-weight:800;background:#2b45b8;color:#fff}
+.fteam .judge button.on.good{background:var(--good);color:#04210f}
+.fteam .judge button.on.bad{background:var(--bad)}
+.standings{display:flex;flex-direction:column;gap:10px;width:min(700px,100%)}
+.standings div{display:flex;justify-content:space-between;background:#0b1a55;border-left:10px solid var(--c);border-radius:12px;padding:10px 18px;font-size:clamp(20px,2.4vw,32px);font-weight:800}
+.standings div:first-child{box-shadow:0 0 0 4px var(--gold);font-size:clamp(26px,3vw,42px)}
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;overflow:auto;min-height:0}
+
+@media (max-width:700px){
+  body{overflow:auto}
+  #game{height:auto;min-height:100%}
+  #board{grid-template-columns:repeat(3,1fr);grid-template-rows:none}
+  .cat{display:none}
+  .tile{min-height:60px;font-size:26px}
+  .tile::before{content:attr(data-cat);display:block;font-size:11px;color:#fff;font-family:Inter;text-shadow:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP ============ -->
+<section id="setup">
+  <div class="card">
+    <h1 id="titleH"></h1>
+    <div class="sub" id="subH"></div>
+
+    <div class="row">
+      <label for="nTeams">Number of teams</label>
+      <select id="nTeams"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
+    </div>
+    <div class="teams-setup" id="teamInputs"></div>
+
+    <div class="row">
+      <label for="tSec">Answer timer after buzzing</label>
+      <select id="tSec"><option value="0">Off</option><option value="10">10 sec</option><option value="20">20 sec</option><option value="30" selected>30 sec</option><option value="45">45 sec</option><option value="60">60 sec</option></select>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="neg" checked> Wrong answers lose points</label>
+      <label><input type="checkbox" id="early" checked> Lock out teams that buzz too early (1 sec)</label>
+      <label><input type="checkbox" id="ddOn" checked> Include 2 Daily Doubles</label>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="startBtn">Start New Game</button>
+      <button class="btn secondary hidden" id="resumeBtn">Resume Saved Game</button>
+      <a href="answer-key.html" target="_blank">Teacher answer key ↗</a>
+    </div>
+
+    <div class="how">
+      <b>How to play.</b> The team in control picks a tile. Read the question aloud, then click <b>Open Buzzers</b>.
+      Teams buzz in with their <b>keyboard key</b> (shown above) or by tapping their colored <b>buzz pad</b> on screen.
+      The first team gets the timer to answer. Click <b>Correct</b> to award the points (that team picks next) or
+      <b>Incorrect</b> — that team is locked out and buzzers reopen for everyone else. If nobody gets it, click <b>Reveal Answer</b>.
+      Buzzing before the buzzers open locks that team out for 1 second. Use the small <b>+/−</b> buttons on a score to fix mistakes.
+      The game saves automatically, so refreshing the page won't lose scores.
+    </div>
+  </div>
+</section>
+
+<!-- ============ BOARD ============ -->
+<section id="game" class="hidden">
+  <div class="topbar">
+    <h2 id="boardTitle"></h2>
+    <span class="ctl" id="ctlText"></span>
+    <span class="sp"></span>
+    <button class="btn secondary" id="muteBtn">🔊 Sound on</button>
+    <button class="btn secondary" id="menuBtn">⚙ Setup</button>
+    <button class="btn" id="finalBtn">Final Round</button>
+  </div>
+  <div id="board"></div>
+  <div id="scores"></div>
+</section>
+
+<!-- ============ QUESTION ============ -->
+<section id="qv" class="overlay hidden">
+  <div class="qhead"><span id="qCat"></span><span class="val" id="qVal"></span></div>
+  <div class="qtext" id="qMain"></div>
+  <div id="qBanner" class="hidden" style="display:flex;justify-content:center"></div>
+  <div class="status" id="qStatus"></div>
+  <div class="timer hidden" id="qTimer"><i></i><b></b></div>
+  <div class="answer hidden" id="qAns"></div>
+  <div class="controls" id="qCtrls"></div>
+  <div class="pads" id="qPads"></div>
+</section>
+
+<!-- ============ FINAL ============ -->
+<section id="fv" class="overlay hidden">
+  <div class="qhead"><span>Final Round</span><span class="val" id="fCat"></span></div>
+  <div class="center" id="fMain"></div>
+  <div class="status" id="fStatus"></div>
+  <div class="timer hidden" id="fTimer"><i></i><b></b></div>
+  <div class="controls" id="fCtrls"></div>
+</section>
+
+<script src="questions.js"></script>
+<script>
+(function(){
+const G = window.GAME, fmt = window.fmt;
+const KEYS = ["A","L","Q","P","Z","M"];
+const DEFAULT_NAMES = ["Team 1","Team 2","Team 3","Team 4","Team 5","Team 6"];
+const SAVE = "alg2b-u2-showdown-v1";
+const $ = id => document.getElementById(id);
+const color = i => `var(--t${i})`;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let S = null;      // saved game state
+let Q = null;      // current question runtime state
+let muted = false;
+
+/* ---------------- sound ---------------- */
+let ac = null;
+function tone(freq, dur, type="sine", when=0, vol=.18){
+  if (muted) return;
+  try{
+    ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + when;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + .02);
+  }catch(e){}
+}
+const SFX = {
+  buzz(){ tone(330,.35,"square",0,.15); tone(440,.35,"square",0,.1); },
+  open(){ tone(880,.12); tone(1320,.15,"sine",.1); },
+  good(){ [523,659,784,1047].forEach((f,i)=>tone(f,.25,"triangle",i*.09)); },
+  bad(){ tone(180,.5,"sawtooth",0,.14); tone(140,.6,"sawtooth",.15,.14); },
+  early(){ tone(120,.15,"square",0,.1); },
+  time(){ tone(600,.18,"square",0,.12); tone(600,.18,"square",.25,.12); tone(600,.4,"square",.5,.12); },
+  dd(){ [392,523,659,784,1047,1319].forEach((f,i)=>tone(f,.2,"triangle",i*.07)); }
+};
+
+/* ---------------- storage ---------------- */
+function save(){ try{ localStorage.setItem(SAVE, JSON.stringify(S)); }catch(e){} }
+function load(){ try{ return JSON.parse(localStorage.getItem(SAVE)); }catch(e){ return null; } }
+
+/* ---------------- setup screen ---------------- */
+$("titleH").textContent = G.title; $("subH").textContent = G.subtitle;
+$("boardTitle").textContent = G.title;
+function renderTeamInputs(){
+  const n = +$("nTeams").value, box = $("teamInputs");
+  const old = [...box.querySelectorAll("input")].map(i=>i.value);
+  box.innerHTML = "";
+  for (let i=0;i<n;i++){
+    const d = document.createElement("div");
+    d.className = "team-in"; d.style.setProperty("--c", color(i));
+    d.innerHTML = `<input type="text" maxlength="18" aria-label="Team ${i+1} name" value="${esc(old[i] ?? DEFAULT_NAMES[i])}"><span title="Buzz key">key <span class="keycap">${KEYS[i]}</span></span>`;
+    box.appendChild(d);
+  }
+}
+$("nTeams").onchange = renderTeamInputs;
+renderTeamInputs();
+const saved = load();
+if (saved && saved.teams) $("resumeBtn").classList.remove("hidden");
+$("resumeBtn").onclick = () => { S = load(); showBoard(); };
+$("startBtn").onclick = () => {
+  const names = [...$("teamInputs").querySelectorAll("input")].map((x,i)=>x.value.trim() || DEFAULT_NAMES[i]);
+  S = {
+    teams: names.map((name,i)=>({name, score:0})),
+    timer: +$("tSec").value, neg: $("neg").checked, early: $("early").checked,
+    used: {}, dd: $("ddOn").checked ? pickDailyDoubles() : [], control: null, finalDone: false
+  };
+  save(); showBoard();
+};
+function pickDailyDoubles(){
+  const cats = [...G.categories.keys()].sort(()=>Math.random()-.5).slice(0,2);
+  return cats.map(c => `${c}-${2 + Math.floor(Math.random()*3)}`); // 300–500 rows
+}
+
+/* ---------------- board ---------------- */
+function showBoard(){
+  $("setup").classList.add("hidden"); $("qv").classList.add("hidden"); $("fv").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  const b = $("board"); b.innerHTML = "";
+  G.categories.forEach(c => { const d=document.createElement("div"); d.className="cat"; d.textContent=c.name; b.appendChild(d); });
+  for (let r=0;r<5;r++) G.categories.forEach((c,ci)=>{
+    const id = `${ci}-${r}`, t = document.createElement("button");
+    t.className = "tile"; t.textContent = c.qs[r].v; t.dataset.cat = c.name;
+    t.disabled = !!S.used[id];
+    t.setAttribute("aria-label", `${c.name} for ${c.qs[r].v}`);
+    t.onclick = () => openQuestion(ci, r);
+    b.appendChild(t);
+  });
+  renderScores();
+  const left = 30 - Object.keys(S.used).length;
+  $("finalBtn").style.boxShadow = left===0 ? "0 0 0 4px #fff, 0 0 30px var(--gold)" : "";
+}
+function renderScores(){
+  const box = $("scores"); box.innerHTML = "";
+  S.teams.forEach((t,i)=>{
+    const d = document.createElement("div");
+    d.className = "score" + (S.control===i ? " control":"");
+    d.style.setProperty("--c", color(i));
+    d.innerHTML = `<span class="keycap">${KEYS[i]}</span><span class="nm">${esc(t.name)}</span>
+      <span class="pts ${t.score<0?"neg":""}">${t.score}</span>
+      <span class="adj"><button data-d="100" title="Add 100">+</button><button data-d="-100" title="Subtract 100">−</button></span>`;
+    d.querySelectorAll(".adj button").forEach(btn=>btn.onclick=()=>{ t.score += +btn.dataset.d; save(); renderScores(); });
+    d.querySelector(".nm").onclick = () => { S.control = i; save(); renderScores(); };
+    d.querySelector(".nm").title = "Click to give this team control of the board";
+    box.appendChild(d);
+  });
+  $("ctlText").textContent = S.control!=null ? `▶ ${S.teams[S.control].name} picks next` : "Any team may pick first";
+}
+$("menuBtn").onclick = () => {
+  stopTimer();
+  $("game").classList.add("hidden"); $("setup").classList.remove("hidden");
+  $("resumeBtn").classList.remove("hidden");
+};
+$("muteBtn").onclick = () => { muted = !muted; $("muteBtn").textContent = muted ? "🔇 Sound off" : "🔊 Sound on"; };
+
+/* ---------------- timer ---------------- */
+let tmr = null;
+function startTimer(el, secs, onDone){
+  stopTimer();
+  if (!secs){ el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const bar = el.querySelector("i"), lbl = el.querySelector("b"), end = Date.now() + secs*1000;
+  const tick = () => {
+    const left = Math.max(0, end - Date.now());
+    bar.style.transform = `scaleX(${left/(secs*1000)})`;
+    bar.classList.toggle("low", left < 5000);
+    lbl.textContent = Math.ceil(left/1000) + "s";
+    if (left <= 0){ stopTimer(); SFX.time(); onDone && onDone(); }
+  };
+  tick(); tmr = setInterval(tick, 100);
+}
+function stopTimer(){ clearInterval(tmr); tmr = null; }
+
+/* ---------------- question flow ---------------- */
+// phases: dd-wager, reading, open, answering, done
+function openQuestion(ci, r){
+  const cat = G.categories[ci], item = cat.qs[r], id = `${ci}-${r}`;
+  Q = { id, ci, r, cat, item, out: new Set(), phase: "reading", who: null, early: {}, value: item.v };
+  $("qCat").textContent = cat.name;
+  $("qVal").textContent = item.v;
+  $("qAns").classList.add("hidden"); $("qv").classList.remove("revealed");
+  $("qBanner").classList.add("hidden");
+  $("qTimer").classList.add("hidden");
+  $("game").classList.add("hidden"); $("qv").classList.remove("hidden");
+  if (S.dd.includes(id)){ Q.phase = "dd-wager"; Q.who = S.control ?? 0; SFX.dd(); }
+  renderQ();
+}
+function showQuestionText(){ $("qMain").innerHTML = `<div>${fmt(Q.item.q)}</div>`; }
+
+function renderQ(){
+  const ctr = $("qCtrls"), st = $("qStatus"), pads = $("qPads");
+  ctr.innerHTML = ""; st.className = "status"; st.textContent = "";
+  const btn = (label, cls, fn, dis) => { const b=document.createElement("button"); b.className="btn "+cls; b.innerHTML=label; b.onclick=fn; b.disabled=!!dis; ctr.appendChild(b); return b; };
+
+  // buzz pads (hidden for Daily Double)
+  pads.innerHTML = "";
+  if (!Q.phase.startsWith("dd")){
+    S.teams.forEach((t,i)=>{
+      const p = document.createElement("button");
+      p.className = "pad" + (Q.out.has(i) ? " out":"") + (Q.who===i && Q.phase==="answering" ? " lit":"");
+      p.style.setProperty("--c", color(i));
+      p.innerHTML = `${esc(t.name)}<span class="keycap">${KEYS[i]}</span>`;
+      p.addEventListener("pointerdown", e => { e.preventDefault(); buzz(i); });
+      pads.appendChild(p);
+    });
+  }
+
+  if (Q.phase === "dd-wager"){
+    $("qMain").innerHTML = `<div class="wager"><div class="dd">Daily Double!</div>
+      <div>Which team is answering?</div><div class="pick" id="ddPick"></div>
+      <div>Wager (up to <b id="ddMax"></b>):</div><input type="number" id="ddW" min="0" step="50"></div>`;
+    const pick = $("ddPick");
+    const refresh = () => {
+      pick.querySelectorAll("button").forEach((b,i)=>b.classList.toggle("sel", i===Q.who));
+      const max = Math.max(S.teams[Q.who].score, 500);
+      $("ddMax").textContent = max; $("ddW").max = max;
+      if (!$("ddW").value) $("ddW").value = Math.min(max, Q.item.v);
+    };
+    S.teams.forEach((t,i)=>{ const b=document.createElement("button"); b.style.setProperty("--c",color(i)); b.textContent=t.name; b.onclick=()=>{Q.who=i; $("ddW").value=""; refresh();}; pick.appendChild(b); });
+    refresh();
+    btn("Show Question","", ()=>{
+      const max = Math.max(S.teams[Q.who].score, 500);
+      let w = Math.round(+$("ddW").value || 0); w = Math.max(0, Math.min(max, w));
+      Q.value = w; $("qVal").textContent = `Daily Double · wager ${w}`;
+      Q.phase = "dd-answer"; showQuestionText(); renderQ();
+      startTimer($("qTimer"), S.timer || 0);
+    });
+    btn("Back to Board","secondary", backToBoard);
+    return;
+  }
+
+  if (Q.phase === "dd-answer"){
+    banner(Q.who);
+    st.textContent = `${S.teams[Q.who].name} — your answer?`;
+    btn("✓ Correct","good", ()=>judge(true));
+    btn("✗ Incorrect","bad", ()=>judge(false));
+    return;
+  }
+
+  if (Q.phase === "reading"){
+    showQuestionText();
+    st.textContent = "Read the question… buzzers are locked";
+    btn("🔔 Open Buzzers","", openBuzzers);
+    btn("Reveal Answer","secondary", reveal);
+    btn("Back to Board","secondary", backToBoard);
+  } else if (Q.phase === "open"){
+    st.className = "status open"; st.textContent = Q.out.size ? "Buzzers open — other teams, buzz in!" : "Buzzers open — buzz in!";
+    btn("Reveal Answer (no one)","secondary", reveal);
+  } else if (Q.phase === "answering"){
+    st.textContent = "Your answer?";
+    btn("✓ Correct","good", ()=>judge(true));
+    btn("✗ Incorrect","bad", ()=>judge(false));
+  } else if (Q.phase === "done"){
+    btn("Back to Board","", backToBoard);
+  }
+}
+function banner(i){
+  const b = $("qBanner"); b.classList.remove("hidden");
+  b.innerHTML = `<div class="banner" style="--c:${color(i)}">${esc(S.teams[i].name)}</div>`;
+}
+function openBuzzers(){
+  if (Q.phase !== "reading" && Q.phase !== "cooldown") return;
+  Q.phase = "open"; Q.who = null; stopTimer(); $("qTimer").classList.add("hidden");
+  $("qBanner").classList.add("hidden");
+  SFX.open(); renderQ();
+}
+function buzz(i){
+  if (!Q || i >= S.teams.length || $("qv").classList.contains("hidden")) return;
+  if (Q.phase === "reading" && S.early && !Q.out.has(i)){
+    Q.early[i] = Date.now() + 1000; SFX.early();
+    const p = $("qPads").children[i]; if (p){ p.classList.remove("early"); void p.offsetWidth; p.classList.add("early"); }
+    return;
+  }
+  if (Q.phase !== "open" || Q.out.has(i) || (Q.early[i] && Date.now() < Q.early[i])) return;
+  Q.phase = "answering"; Q.who = i; SFX.buzz(); banner(i); renderQ();
+  startTimer($("qTimer"), S.timer, ()=>{ $("qStatus").textContent = "Time! Correct or incorrect?"; });
+}
+function judge(ok){
+  stopTimer();
+  const t = S.teams[Q.who];
+  if (ok){
+    t.score += Q.value; S.control = Q.who; SFX.good(); reveal(true);
+  } else {
+    if (S.neg || Q.phase === "dd-answer") t.score -= Q.value;
+    SFX.bad();
+    if (Q.phase === "dd-answer"){ reveal(true); }
+    else {
+      Q.out.add(Q.who);
+      const left = S.teams.length - Q.out.size;
+      if (left > 0){
+        Q.phase = "cooldown"; Q.who = null; $("qBanner").classList.add("hidden"); renderQ();
+        $("qStatus").textContent = "Incorrect!";
+        setTimeout(()=>{ if (Q && Q.phase==="cooldown") openBuzzers(); }, 900);
+      }
+      else reveal(true);
+    }
+  }
+  save();
+}
+function reveal(fromJudge){
+  stopTimer(); $("qTimer").classList.add("hidden");
+  if (fromJudge !== true) $("qBanner").classList.add("hidden");
+  S.used[Q.id] = true; save();
+  const a = $("qAns"); a.innerHTML = `<span class="lbl">ANSWER</span>${fmt(Q.item.a)}`; a.classList.remove("hidden");
+  Q.phase = "done"; $("qv").classList.add("revealed"); renderQ();
+  $("qStatus").textContent = scoreLine();
+}
+function scoreLine(){ return S.teams.map(t=>`${t.name}: ${t.score}`).join("   ·   "); }
+function backToBoard(){ stopTimer(); Q = null; showBoard(); }
+
+/* ---------------- keyboard buzzers ---------------- */
+document.addEventListener("keydown", e => {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  const k = e.key.toUpperCase();
+  const i = KEYS.indexOf(k);
+  if (i >= 0 && Q){ e.preventDefault(); buzz(i); return; }
+  if (e.key === "Escape" && Q && (Q.phase==="done" || Q.phase==="reading")) backToBoard();
+});
+
+/* ---------------- final round ---------------- */
+let F = null;
+$("finalBtn").onclick = () => {
+  const left = 30 - Object.keys(S.used).length;
+  if (left > 0 && !confirm(`There are still ${left} questions on the board. Start the Final Round anyway?`)) return;
+  F = { phase:"wager", wagers: S.teams.map(()=>0), judged: S.teams.map(()=>null) };
+  $("game").classList.add("hidden"); $("fv").classList.remove("hidden");
+  $("fCat").textContent = G.final.category; SFX.dd(); renderF();
+};
+function renderF(){
+  const main = $("fMain"), ctr = $("fCtrls"), st = $("fStatus");
+  ctr.innerHTML = ""; st.textContent = "";
+  const btn = (label, cls, fn) => { const b=document.createElement("button"); b.className="btn "+cls; b.innerHTML=label; b.onclick=fn; ctr.appendChild(b); };
+  if (F.phase === "wager"){
+    main.innerHTML = `<div class="dd" style="font-size:clamp(40px,7vw,96px)">${esc(G.final.category)}</div>
+      <div style="font-size:clamp(18px,2vw,26px)">Each team secretly writes a wager (0 up to their score), then enter it below.</div>
+      <div class="fgrid">${S.teams.map((t,i)=>`<div class="fteam" style="--c:${color(i)}"><span class="nm">${esc(t.name)}</span><span>Score: ${t.score}</span>
+        <input type="number" min="0" max="${Math.max(0,t.score)}" step="50" value="${F.wagers[i]||0}" data-i="${i}" aria-label="${esc(t.name)} wager"><small>max ${Math.max(0,t.score)}</small></div>`).join("")}</div>`;
+    btn("Lock Wagers & Show Question","", ()=>{
+      main.querySelectorAll("input").forEach(inp=>{ const i=+inp.dataset.i; F.wagers[i] = Math.max(0, Math.min(Math.max(0,S.teams[i].score), Math.round(+inp.value||0))); });
+      F.phase = "question"; renderF(); startTimer($("fTimer"), 90, ()=>{ $("fStatus").textContent = "Time! Pencils down."; });
+    });
+    btn("Back to Board","secondary", ()=>{ $("fv").classList.add("hidden"); showBoard(); });
+  } else if (F.phase === "question"){
+    main.innerHTML = `<div class="qtext" style="flex:0"><div>${fmt(G.final.q)}</div></div>`;
+    st.textContent = "Work together — 90 seconds";
+    btn("Reveal Answer","", ()=>{ stopTimer(); $("fTimer").classList.add("hidden"); F.phase="judge"; renderF(); });
+  } else if (F.phase === "judge"){
+    main.innerHTML = `<div class="answer" style="width:min(1100px,100%)"><span class="lbl">ANSWER</span>${fmt(G.final.a)}</div>
+      <div class="fgrid">${S.teams.map((t,i)=>`<div class="fteam" style="--c:${color(i)}"><span class="nm">${esc(t.name)}</span><span>Wager: ${F.wagers[i]}</span>
+        <div class="judge"><button class="good ${F.judged[i]===true?"on":""}" data-i="${i}" data-v="1">✓ Right</button><button class="bad ${F.judged[i]===false?"on":""}" data-i="${i}" data-v="0">✗ Wrong</button></div></div>`).join("")}</div>`;
+    main.querySelectorAll(".judge button").forEach(b=>b.onclick=()=>{ F.judged[+b.dataset.i] = b.dataset.v==="1"; renderF(); });
+    st.textContent = "Mark each team, then show final scores";
+    btn("Show Final Scores","", ()=>{
+      if (F.judged.some(j=>j===null) && !confirm("Some teams aren't marked yet. Unmarked teams keep their score. Continue?")) return;
+      S.teams.forEach((t,i)=>{ if (F.judged[i]===true) t.score += F.wagers[i]; else if (F.judged[i]===false) t.score -= F.wagers[i]; });
+      S.finalDone = true; save(); F.phase = "done"; SFX.good(); setTimeout(SFX.good, 450); renderF();
+    });
+  } else if (F.phase === "done"){
+    const order = S.teams.map((t,i)=>({...t,i})).sort((a,b)=>b.score-a.score);
+    const top = order[0].score, winners = order.filter(t=>t.score===top).map(t=>esc(t.name));
+    main.innerHTML = `<div class="dd" style="font-size:clamp(36px,6vw,84px)">🏆 ${winners.join(" & ")} ${winners.length>1?"tie!":"wins!"}</div>
+      <div class="standings">${order.map(t=>`<div style="--c:${color(t.i)}"><span>${esc(t.name)}</span><span>${t.score}</span></div>`).join("")}</div>`;
+    btn("Back to Board","secondary", ()=>{ $("fv").classList.add("hidden"); showBoard(); });
+    btn("New Game","", ()=>{ $("fv").classList.add("hidden"); $("game").classList.add("hidden"); $("setup").classList.remove("hidden"); });
+  }
+}
+})();
+</script>
+</body>
+</html>

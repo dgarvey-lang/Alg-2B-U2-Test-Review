@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showdown Answer Key</title>
+<style>
+:root{--ink:#111;--muted:#555;--line:#ccc;--bg:#fff;--head:#0f2a8a}
+body{font-family:system-ui,sans-serif;color:var(--ink);background:var(--bg);max-width:900px;margin:0 auto;padding:24px 16px;line-height:1.45}
+h1{margin:0;color:var(--head)} .sub{color:var(--muted);margin-bottom:18px}
+h2{color:var(--head);border-bottom:2px solid var(--head);padding-bottom:4px;margin-top:26px;break-after:avoid}
+.q{display:grid;grid-template-columns:56px 1fr;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--line);break-inside:avoid}
+.v{font-weight:800;color:var(--head)} .a{grid-column:2;background:#f2f5ff;border-left:4px solid var(--head);padding:6px 10px;border-radius:4px}
+.m{font-family:"Cambria Math","Times New Roman",serif;white-space:nowrap}
+.rad{display:inline-flex}.rc{border-top:1px solid currentColor;padding:0 2px}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.9em;margin:0 2px}.fn{border-bottom:1px solid currentColor}
+.work{background:#fff5f5;border-left:4px solid #e44;padding:4px 10px;margin:4px 0}
+button{font:inherit;padding:6px 14px;margin:8px 0}
+@media print{button{display:none}}
+</style>
+</head>
+<body>
+<h1 id="t"></h1><div class="sub" id="s"></div>
+<button onclick="print()">Print</button>
+<div id="k"></div>
+<script src="questions.js"></script>
+<script>
+const G=window.GAME,f=window.fmt;
+document.getElementById("t").textContent=G.title+" – Answer Key";
+document.getElementById("s").textContent=G.subtitle;
+let h="";
+G.categories.forEach(c=>{h+=`<h2>${c.name}</h2>`;c.qs.forEach(q=>{h+=`<div class="q"><span class="v">${q.v}</span><div>${f(q.q)}</div><div class="a">${f(q.a)}</div></div>`})});
+h+=`<h2>Final Round – ${G.final.category}</h2><div class="q"><span class="v">★</span><div>${f(G.final.q)}</div><div class="a">${f(G.final.a)}</div></div>`;
+document.getElementById("k").innerHTML=h;
+</script>
+</body>
+</html>
