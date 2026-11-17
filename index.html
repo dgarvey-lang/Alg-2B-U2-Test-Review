@@ -125,6 +125,12 @@ a{color:var(--gold)}
 .standings div:first-child{box-shadow:0 0 0 4px var(--gold);font-size:clamp(26px,3vw,42px)}
 .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;overflow:auto;min-height:0}
 
+.room{background:#0b1a55;border:2px solid var(--gold);border-radius:999px;padding:4px 14px;font-size:clamp(13px,1.3vw,18px);font-weight:600;white-space:nowrap}
+.room b{color:var(--gold);font-family:Oswald,sans-serif;font-size:1.35em;letter-spacing:.12em}
+.room.bad{border-color:var(--bad)}
+.qroom{font-family:Inter,sans-serif;text-transform:none;font-size:clamp(13px,1.3vw,18px)}
+.qroom b{color:var(--gold);font-family:Oswald,sans-serif;font-size:1.3em;letter-spacing:.12em}
+.score .dev{font-size:12px;color:var(--muted);white-space:nowrap}
 @media (max-width:700px){
   body{overflow:auto}
   #game{height:auto;min-height:100%}
@@ -157,6 +163,7 @@ a{color:var(--gold)}
       <label><input type="checkbox" id="neg" checked> Wrong answers lose points</label>
       <label><input type="checkbox" id="early" checked> Lock out teams that buzz too early (1 sec)</label>
       <label><input type="checkbox" id="ddOn" checked> Include 2 Daily Doubles</label>
+      <label><input type="checkbox" id="remote" checked> Students can buzz from their own devices (room code)</label>
     </div>
 
     <div class="row">
@@ -171,7 +178,8 @@ a{color:var(--gold)}
       The first team gets the timer to answer. Click <b>Correct</b> to award the points (that team picks next) or
       <b>Incorrect</b> — that team is locked out and buzzers reopen for everyone else. If nobody gets it, click <b>Reveal Answer</b>.
       Buzzing before the buzzers open locks that team out for 1 second. Use the small <b>+/−</b> buttons on a score to fix mistakes.
-      The game saves automatically, so refreshing the page won't lose scores.
+      The game saves automatically, so refreshing the page won't lose scores.<br><br>
+      <b>Student devices.</b> With that option on, the board shows a join link and a 4-letter room code. Students open <b>buzzer.html</b> on a Chromebook or phone, type the code, pick their team, and get a big BUZZ button. Keyboard keys and on-screen pads still work too.
     </div>
   </div>
 </section>
@@ -181,6 +189,7 @@ a{color:var(--gold)}
   <div class="topbar">
     <h2 id="boardTitle"></h2>
     <span class="ctl" id="ctlText"></span>
+    <span class="room hidden" id="roomTag"></span>
     <span class="sp"></span>
     <button class="btn secondary" id="muteBtn">🔊 Sound on</button>
     <button class="btn secondary" id="menuBtn">⚙ Setup</button>
@@ -192,7 +201,7 @@ a{color:var(--gold)}
 
 <!-- ============ QUESTION ============ -->
 <section id="qv" class="overlay hidden">
-  <div class="qhead"><span id="qCat"></span><span class="val" id="qVal"></span></div>
+  <div class="qhead"><span id="qCat"></span><span class="qroom" id="qRoom"></span><span class="val" id="qVal"></span></div>
   <div class="qtext" id="qMain"></div>
   <div id="qBanner" class="hidden" style="display:flex;justify-content:center"></div>
   <div class="status" id="qStatus"></div>
@@ -211,6 +220,8 @@ a{color:var(--gold)}
   <div class="controls" id="fCtrls"></div>
 </section>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="net.js"></script>
 <script src="questions.js"></script>
 <script>
 (function(){
@@ -270,15 +281,16 @@ $("nTeams").onchange = renderTeamInputs;
 renderTeamInputs();
 const saved = load();
 if (saved && saved.teams) $("resumeBtn").classList.remove("hidden");
-$("resumeBtn").onclick = () => { S = load(); showBoard(); };
+$("resumeBtn").onclick = () => { S = load(); showBoard(); startNet(); };
 $("startBtn").onclick = () => {
   const names = [...$("teamInputs").querySelectorAll("input")].map((x,i)=>x.value.trim() || DEFAULT_NAMES[i]);
   S = {
     teams: names.map((name,i)=>({name, score:0})),
     timer: +$("tSec").value, neg: $("neg").checked, early: $("early").checked,
-    used: {}, dd: $("ddOn").checked ? pickDailyDoubles() : [], control: null, finalDone: false
+    used: {}, dd: $("ddOn").checked ? pickDailyDoubles() : [], control: null, finalDone: false,
+    remote: $("remote").checked, room: (S && S.room) || NETCFG.newCode()
   };
-  save(); showBoard();
+  save(); showBoard(); startNet();
 };
 function pickDailyDoubles(){
   const cats = [...G.categories.keys()].sort(()=>Math.random()-.5).slice(0,2);
@@ -299,7 +311,7 @@ function showBoard(){
     t.onclick = () => openQuestion(ci, r);
     b.appendChild(t);
   });
-  renderScores();
+  renderScores(); paintRoom();
   const left = 30 - Object.keys(S.used).length;
   $("finalBtn").style.boxShadow = left===0 ? "0 0 0 4px #fff, 0 0 30px var(--gold)" : "";
 }
@@ -310,6 +322,7 @@ function renderScores(){
     d.className = "score" + (S.control===i ? " control":"");
     d.style.setProperty("--c", color(i));
     d.innerHTML = `<span class="keycap">${KEYS[i]}</span><span class="nm">${esc(t.name)}</span>
+      ${S.remote ? `<span class="dev" title="Student devices on this team">📱 ${devCount(i)}</span>` : ""}
       <span class="pts ${t.score<0?"neg":""}">${t.score}</span>
       <span class="adj"><button data-d="100" title="Add 100">+</button><button data-d="-100" title="Subtract 100">−</button></span>`;
     d.querySelectorAll(".adj button").forEach(btn=>btn.onclick=()=>{ t.score += +btn.dataset.d; save(); renderScores(); });
@@ -440,7 +453,7 @@ function openBuzzers(){
 function buzz(i){
   if (!Q || i >= S.teams.length || $("qv").classList.contains("hidden")) return;
   if (Q.phase === "reading" && S.early && !Q.out.has(i)){
-    Q.early[i] = Date.now() + 1000; SFX.early();
+    Q.early[i] = Date.now() + 1000; SFX.early(); netTell(i, {type:"early"});
     const p = $("qPads").children[i]; if (p){ p.classList.remove("early"); void p.offsetWidth; p.classList.add("early"); }
     return;
   }
@@ -480,6 +493,76 @@ function reveal(fromJudge){
 }
 function scoreLine(){ return S.teams.map(t=>`${t.name}: ${t.score}`).join("   ·   "); }
 function backToBoard(){ stopTimer(); Q = null; showBoard(); }
+
+/* ---------------- student devices (PeerJS) ---------------- */
+const NET = { peer:null, conns:new Map(), code:null, status:"off", tries:0 };
+function joinURL(){ const u = new URL("buzzer.html", location.href); u.search = ""; u.hash = ""; return u.href.replace(/^https?:\/\//, ""); }
+function devCount(team){ let n=0; NET.conns.forEach(c=>{ if(c.team===team) n++; }); return n; }
+function startNet(){
+  if (!S || !S.remote){ stopNet(); paintRoom(); return; }
+  if (typeof Peer === "undefined"){ NET.status = "nolib"; paintRoom(); return; }
+  if (NET.peer && !NET.peer.destroyed && NET.code === S.room) return;
+  stopNet();
+  NET.code = S.room; NET.status = "connecting"; paintRoom();
+  const peer = NET.peer = new Peer(NETCFG.PREFIX + S.room, NETCFG.peerOptions());
+  peer.on("open", () => { NET.status = "ready"; NET.tries = 0; paintRoom(); });
+  peer.on("disconnected", () => { if (peer === NET.peer){ NET.status = "connecting"; paintRoom(); setTimeout(()=>{ try{ peer.reconnect(); }catch(e){} }, 1500); } });
+  peer.on("error", err => {
+    if (peer !== NET.peer) return;
+    if (err.type === "unavailable-id"){
+      // Usually the same code from just before a page refresh; wait for the server to free it, then pick a new code.
+      NET.tries++;
+      if (NET.tries > 3){ S.room = NETCFG.newCode(); save(); NET.tries = 0; }
+      stopNet(); setTimeout(startNet, 3000);
+    } else if (["network","server-error","socket-error","socket-closed","browser-incompatible"].includes(err.type)){
+      NET.status = "error"; paintRoom(); stopNet(); setTimeout(startNet, 5000);
+    }
+  });
+  peer.on("connection", conn => {
+    conn.on("open", () => { NET.conns.set(conn.peer, { conn, team:null }); sendTo(conn, netState()); paintRoom(); });
+    conn.on("data", d => {
+      const c = NET.conns.get(conn.peer); if (!c || !d) return;
+      if (d.type === "join"){ c.team = (Number.isInteger(d.team) && d.team >= 0 && d.team < S.teams.length) ? d.team : null; sendTo(conn, netState()); paintRoom(); }
+      else if (d.type === "buzz" && c.team != null && d.team === c.team) buzz(c.team);
+    });
+    const gone = () => { if (NET.conns.delete(conn.peer)) paintRoom(); };
+    conn.on("close", gone); conn.on("error", gone);
+  });
+}
+function stopNet(){
+  if (NET.peer){ const p = NET.peer; NET.peer = null; try{ p.destroy(); }catch(e){} }
+  NET.conns.clear(); NET.status = "off";
+}
+function sendTo(conn, msg){ try{ if (conn.open) conn.send(msg); }catch(e){} }
+function netTell(team, msg){ NET.conns.forEach(c => { if (c.team === team) sendTo(c.conn, msg); }); }
+function netState(){
+  let phase = "board";
+  if (!$("fv").classList.contains("hidden")) phase = "final";
+  else if (Q && !$("qv").classList.contains("hidden")) phase = Q.phase;
+  return { type:"state", phase, who: Q ? Q.who : null, out: Q ? [...Q.out] : [],
+    teams: S.teams.map((t,i)=>({ name:t.name, score:t.score, color:NETCFG.COLORS[i] })) };
+}
+function broadcast(){ if (!NET.conns.size || !S) return; const st = netState(); NET.conns.forEach(c => sendTo(c.conn, st)); }
+function paintRoom(){
+  const tag = $("roomTag"), q = $("qRoom");
+  if (!S || !S.remote){ tag.classList.add("hidden"); q.textContent = ""; return; }
+  tag.classList.remove("hidden");
+  const n = NET.conns.size;
+  let html, bad = false;
+  if (NET.status === "ready") html = `📱 Join at <u>${esc(joinURL())}</u> · code <b>${esc(S.room)}</b> · ${n} device${n===1?"":"s"}`;
+  else if (NET.status === "connecting") html = `📱 Setting up student buzzers… code <b>${esc(S.room)}</b>`;
+  else { bad = true; html = "📱 Student buzzers unavailable on this network — use keys or pads"; }
+  tag.innerHTML = html; tag.classList.toggle("bad", bad);
+  q.innerHTML = NET.status === "ready" ? `📱 code <b>${esc(S.room)}</b>` : "";
+  if (!$("game").classList.contains("hidden")) renderScoresOnly();
+}
+// re-broadcast whenever the screen changes
+const _renderQ = renderQ;      renderQ = function(){ _renderQ(); broadcast(); };
+const _renderF = renderF;      renderF = function(){ _renderF(); broadcast(); };
+const _renderScores = renderScores;
+function renderScoresOnly(){ _renderScores(); }
+renderScores = function(){ _renderScores(); broadcast(); };
+window.addEventListener("beforeunload", () => { try{ NET.peer && NET.peer.destroy(); }catch(e){} });
 
 /* ---------------- keyboard buzzers ---------------- */
 document.addEventListener("keydown", e => {

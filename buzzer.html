@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Showdown Buzzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b1640;--panel:#122364;--line:#2b45b8;--gold:#ffcc33;--ink:#fff;--muted:#b9c4f0;--c:#2b45b8}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:radial-gradient(ellipse at top,#16257a,var(--bg) 70%);color:var(--ink);font-family:Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px}
+.wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;gap:18px;text-align:center}
+h1{font-family:Oswald,Impact,sans-serif;color:var(--gold);text-transform:uppercase;margin:0;font-size:clamp(32px,7vw,56px);text-shadow:3px 3px 0 #000}
+.muted{color:var(--muted)}
+input{font:inherit;font-family:Oswald,sans-serif;font-size:44px;letter-spacing:.3em;text-align:center;text-transform:uppercase;width:min(300px,100%);padding:10px;border-radius:14px;border:3px solid var(--line);background:#0b1a55;color:#fff}
+.btn{padding:14px 28px;font-weight:800;font-size:20px;background:var(--gold);color:#111}
+.btn:disabled{opacity:.4}
+.err{color:#ff9a9a;font-weight:600;min-height:1.3em}
+.teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;width:min(640px,100%)}
+.teams button{background:var(--c);color:#fff;font-weight:800;font-size:22px;padding:22px 10px;box-shadow:0 5px 0 rgba(0,0,0,.35)}
+#play{justify-content:space-between}
+.top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tag{background:var(--c);padding:8px 16px;border-radius:999px;font-weight:800;font-size:20px}
+.top small{color:var(--muted)}
+.link{background:none;color:var(--muted);text-decoration:underline;font-size:14px}
+#buzz{width:min(72vw,62vh,420px);aspect-ratio:1;border-radius:50%;background:#3a4677;color:rgba(255,255,255,.55);font-family:Oswald,sans-serif;font-size:clamp(40px,11vw,84px);text-transform:uppercase;box-shadow:0 12px 0 rgba(0,0,0,.45),inset 0 -10px 30px rgba(0,0,0,.3);transition:transform .06s,background .2s;touch-action:manipulation}
+#buzz.ready{background:var(--c);color:#fff;animation:glow 1s infinite}
+#buzz.won{background:var(--gold);color:#111;box-shadow:0 0 0 10px #fff,0 0 80px var(--gold)}
+#buzz:active{transform:translateY(8px);box-shadow:0 4px 0 rgba(0,0,0,.45)}
+#buzz.shake{animation:shake .3s}
+@keyframes glow{50%{box-shadow:0 12px 0 rgba(0,0,0,.45),0 0 60px var(--c)}}
+@keyframes shake{25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+#msg{font-family:Oswald,sans-serif;font-size:clamp(24px,5vw,40px);text-transform:uppercase;min-height:1.3em}
+#conn{font-size:14px;color:var(--muted)}
+#conn.bad{color:#ff9a9a}
+</style>
+</head>
+<body>
+
+<!-- Join -->
+<section class="wrap" id="join">
+  <h1>Showdown Buzzer</h1>
+  <div class="muted">Type the room code shown on the board</div>
+  <input id="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code">
+  <button class="btn" id="joinBtn">Join</button>
+  <div class="err" id="joinErr"></div>
+</section>
+
+<!-- Pick team -->
+<section class="wrap hidden" id="pick">
+  <h1>Pick your team</h1>
+  <div class="teams" id="teamBtns"></div>
+  <button class="link" id="leave1">Use a different code</button>
+</section>
+
+<!-- Buzz -->
+<section class="wrap hidden" id="play">
+  <div class="top">
+    <span class="tag" id="myTeam"></span>
+    <small id="myScore"></small>
+  </div>
+  <div id="msg"></div>
+  <button id="buzz" aria-label="Buzz in">Buzz</button>
+  <div>
+    <div id="conn"></div>
+    <button class="link" id="changeTeam">Change team</button>
+  </div>
+</section>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="net.js"></script>
+<script>
+(function(){
+const N = window.NETCFG, $ = id => document.getElementById(id);
+const KEY = "alg2b-u2-buzzer";
+let peer = null, conn = null, code = "", team = null, state = null, retry = null, wanted = false, opened = false;
+
+function store(){ try{ localStorage.setItem(KEY, JSON.stringify({code, team})); }catch(e){} }
+function restore(){ try{ return JSON.parse(localStorage.getItem(KEY)) || {}; }catch(e){ return {}; } }
+function show(id){ ["join","pick","play"].forEach(s => $(s).classList.toggle("hidden", s !== id)); }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- connection ---------- */
+function connect(){
+  clearTimeout(retry);
+  wanted = true; opened = false;
+  if (typeof Peer === "undefined"){ $("joinErr").textContent = "Couldn't load the buzzer system. Check your internet connection."; return; }
+  if (!peer || peer.destroyed){
+    peer = new Peer(N.peerOptions());
+    peer.on("open", openConn);
+    peer.on("disconnected", () => { try{ peer.reconnect(); }catch(e){} });
+    peer.on("error", err => {
+      if (err.type === "peer-unavailable"){
+        if (state){ setConn("Lost the teacher's screen. Reconnecting…", true); scheduleRetry(); }
+        else { $("joinErr").textContent = `No game found with code ${code}. Check the code on the board.`; wanted = false; show("join"); }
+      } else {
+        setConn("Connection problem. Retrying…", true);
+        if (!state) $("joinErr").textContent = "Connection problem — retrying…";
+        scheduleRetry(true);
+      }
+    });
+  } else if (peer.open) openConn();
+}
+function openConn(){
+  if (conn){ try{ conn.close(); }catch(e){} }
+  conn = peer.connect(N.PREFIX + code, { reliable: true });
+  const c = conn;
+  const timer = setTimeout(() => { if (c === conn && !c.open){ setConn("Still connecting…", true); scheduleRetry(); } }, 9000);
+  c.on("open", () => {
+    clearTimeout(timer); opened = true; setConn("Connected ✓");
+    if (team != null) c.send({ type: "join", team });
+  });
+  c.on("data", onData);
+  c.on("close", () => { if (c === conn && wanted){ setConn("Lost the teacher's screen. Reconnecting…", true); scheduleRetry(); } });
+  c.on("error", () => { if (c === conn && wanted) scheduleRetry(); });
+}
+function scheduleRetry(full){
+  clearTimeout(retry);
+  if (!wanted) return;
+  retry = setTimeout(() => {
+    if (full && peer){ try{ peer.destroy(); }catch(e){} peer = null; }
+    connect();
+  }, 2500);
+}
+function setConn(t, bad){ $("conn").textContent = t; $("conn").classList.toggle("bad", !!bad); }
+
+function onData(d){
+  if (!d || typeof d !== "object") return;
+  if (d.type === "state"){
+    state = d;
+    $("joinErr").textContent = "";
+    if (team != null && team >= d.teams.length) team = null;
+    if (team == null){ renderPick(); show("pick"); }
+    else { show("play"); render(); }
+  } else if (d.type === "early"){
+    flash("Too early! Wait for the buzzers.");
+  }
+}
+
+/* ---------- screens ---------- */
+function renderPick(){
+  const box = $("teamBtns"); box.innerHTML = "";
+  state.teams.forEach((t,i) => {
+    const b = document.createElement("button");
+    b.style.setProperty("--c", t.color); b.textContent = t.name;
+    b.onclick = () => { team = i; store(); conn && conn.open && conn.send({ type: "join", team }); show("play"); render(); };
+    box.appendChild(b);
+  });
+}
+let flashUntil = 0;
+function flash(t){
+  flashUntil = Date.now() + 1200; $("msg").textContent = t;
+  const b = $("buzz"); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+  setTimeout(render, 1250);
+}
+function render(){
+  if (!state || team == null) return;
+  const me = state.teams[team];
+  document.body.style.setProperty("--c", me.color);
+  $("myTeam").textContent = me.name;
+  $("myScore").textContent = `Score: ${me.score}`;
+  const b = $("buzz"), p = state.phase, out = state.out.includes(team);
+  let msg = "", label = "Wait", cls = "";
+  if (p === "board" || p === "done") { msg = "Waiting for the next question"; }
+  else if (p === "final") { msg = "Final Round — work with your team!"; }
+  else if (p.startsWith("dd")) { msg = "Daily Double — no buzzing"; }
+  else if (p === "reading") { msg = "Get ready… buzzers are locked"; }
+  else if (p === "open") {
+    if (out){ msg = "Your team is locked out"; }
+    else { msg = "Buzzers open!"; label = "Buzz!"; cls = "ready"; }
+  } else if (p === "answering") {
+    if (state.who === team){ msg = "You buzzed first! Answer now"; label = "🎉"; cls = "won"; }
+    else { msg = `${esc(state.teams[state.who]?.name || "Another team")} buzzed in`; }
+  } else if (p === "cooldown") { msg = out ? "Your team is locked out" : "Incorrect — buzzers reopen soon!"; }
+  b.className = cls; b.textContent = label;
+  if (Date.now() > flashUntil) $("msg").innerHTML = msg;
+  if (cls === "won" && navigator.vibrate) navigator.vibrate(200);
+}
+
+/* ---------- buzzing ---------- */
+function press(){
+  if (!conn || !conn.open || team == null || !state) return;
+  if (state.phase.startsWith("dd") || ["board","done","final"].includes(state.phase)) return;
+  conn.send({ type: "buzz", team, t: Date.now() });
+}
+$("buzz").addEventListener("pointerdown", e => { e.preventDefault(); press(); });
+document.addEventListener("keydown", e => {
+  if (e.repeat || $("play").classList.contains("hidden")) return;
+  if (e.code === "Space" || e.key === "Enter"){ e.preventDefault(); press(); }
+});
+
+/* ---------- join flow ---------- */
+function join(){
+  const v = $("code").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (v.length !== 4){ $("joinErr").textContent = "The code has 4 letters/numbers."; return; }
+  if (v !== code){ team = null; state = null; }
+  code = v; store(); $("joinErr").textContent = "Connecting…"; connect();
+}
+$("joinBtn").onclick = join;
+$("code").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
+function leave(){ wanted = false; clearTimeout(retry); if (conn) try{ conn.close(); }catch(e){} state = null; team = null; store(); show("join"); }
+$("leave1").onclick = leave;
+$("changeTeam").onclick = () => { team = null; store(); if (state){ renderPick(); show("pick"); } };
+
+const urlCode = new URLSearchParams(location.search).get("code");
+const saved = restore();
+if (urlCode){ $("code").value = urlCode.toUpperCase(); if (saved.code === urlCode.toUpperCase()) team = saved.team ?? null; join(); }
+else if (saved.code){ $("code").value = saved.code; team = saved.team ?? null; join(); }
+else $("code").focus();
+})();
+</script>
+</body>
+</html>

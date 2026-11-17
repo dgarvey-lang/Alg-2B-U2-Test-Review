@@ -5,6 +5,7 @@ Questions are modeled on the Unit 2 test (radicals & *i*, square roots, factorin
 quadratic formula & discriminant, error analysis, and word problems) with new numbers.
 
 - **`index.html`** – the game (open it in a browser and project it)
+- **`buzzer.html`** – student buzzer for Chromebooks/phones
 - **`answer-key.html`** – printable teacher answer key
 - **`questions.js`** – all questions & answers (edit here to change the game)
 
@@ -16,9 +17,22 @@ quadratic formula & discriminant, error analysis, and word problems) with new nu
    out and buzzers reopen for the other teams). **Reveal Answer** if nobody gets it.
 5. Two hidden **Daily Doubles** and a wager-based **Final Round** are included.
 
+## Student device buzzers
+With **"Students can buzz from their own devices"** checked (default), the board shows a
+join link and a 4-letter room code. Students go to
+
+**https://dgarvey-lang.github.io/Alg-2B-U2-Test-Review/buzzer.html**
+
+type the code, pick their team, and get a big BUZZ button (spacebar works too). Their
+screen shows when buzzers are open, who buzzed first, and when their team is locked out.
+Keyboard keys and on-screen pads keep working alongside devices. Connections use the free
+PeerJS service (no accounts). Test on school Wi-Fi first: some network filters block it.
+
 Options on the setup screen: answer timer, lose points for wrong answers, early-buzz lockout,
 daily doubles. Scores save automatically in the browser.
 
 ## Hosting on GitHub Pages
-Settings → Pages → *Deploy from a branch* → `main` / `(root)`. The game will be at
-`https://dgarvey-lang.github.io/Alg-2B-U2-Test-Review/`.
+Settings → Pages → *Deploy from a branch* → `main` / `(root)`. Links:
+- Game (teacher screen): https://dgarvey-lang.github.io/Alg-2B-U2-Test-Review/
+- Student buzzer: https://dgarvey-lang.github.io/Alg-2B-U2-Test-Review/buzzer.html
+- Answer key: https://dgarvey-lang.github.io/Alg-2B-U2-Test-Review/answer-key.html
